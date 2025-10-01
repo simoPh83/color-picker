@@ -30,7 +30,7 @@ env/
 
 # PyInstaller
 *.manifest
-*.spec
+# Note: .spec files are included as they contain build configuration
 
 # IDE
 .vscode/
