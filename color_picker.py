@@ -7,6 +7,8 @@ import time
 from PIL import Image, ImageTk
 from PIL.Image import Resampling
 import numpy as np
+from platform_capture import PlatformScreenCapture
+from macos_permissions import request_permission_if_needed
 
 class ColorPicker:
     def __init__(self, root):
@@ -15,6 +17,16 @@ class ColorPicker:
         self.root.geometry("300x240")
         self.root.resizable(False, False)
         
+        # Check macOS screen recording permissions
+        if not request_permission_if_needed():
+            # Show warning in the app
+            self.permission_warning = True
+        else:
+            self.permission_warning = False
+        
+        # Initialize platform-aware screen capture
+        self.screen_capture = PlatformScreenCapture()
+        
         # Variables
         self.picking = False
         self.current_color = None
@@ -22,6 +34,10 @@ class ColorPicker:
         self.dual_mode = False
         self.dual_pick_stage = 1  # 1 for first pick, 2 for second pick
         self.current_color_2 = None
+        
+        # Update window title with OS info
+        platform_info = self.screen_capture.get_info()
+        self.root.title(f"Color Picker ({platform_info['os_type'].title()} - {platform_info['capture_method'].upper()})")
         
         # Create GUI
         self.create_widgets()
@@ -548,73 +564,32 @@ class ColorPicker:
                 except:
                     pass
             
-            # Multi-monitor screenshot approach
+            # Platform-aware screenshot approach
             capture_size = 15
-            half_size = capture_size // 2
             
             try:
-                # Method 1: Try Windows-specific screen capture
-                import win32gui
-                import win32ui
-                import win32con
+                # Use the platform-optimized screen capture
+                screenshot = self.screen_capture.capture_screen_area(x, y, capture_size)
                 
-                # Get device context for the entire virtual screen
-                hdesktop = win32gui.GetDesktopWindow()
-                desktop_dc = win32gui.GetWindowDC(hdesktop)
-                img_dc = win32ui.CreateDCFromHandle(desktop_dc)
-                mem_dc = img_dc.CreateCompatibleDC()
-                
-                # Create bitmap
-                screenshot_bmp = win32ui.CreateBitmap()
-                screenshot_bmp.CreateCompatibleBitmap(img_dc, capture_size, capture_size)
-                mem_dc.SelectObject(screenshot_bmp)
-                
-                # Copy screen area to bitmap
-                mem_dc.BitBlt((0, 0), (capture_size, capture_size), img_dc, (x - half_size, y - half_size), win32con.SRCCOPY)
-                
-                # Convert to PIL Image
-                bmpinfo = screenshot_bmp.GetInfo()
-                bmpstr = screenshot_bmp.GetBitmapBits(True)
-                screenshot = Image.frombuffer('RGB', (bmpinfo['bmWidth'], bmpinfo['bmHeight']), bmpstr, 'raw', 'BGRX', 0, 1)
-                
-                # Clean up
-                mem_dc.DeleteDC()
-                img_dc.DeleteDC()
-                win32gui.ReleaseDC(hdesktop, desktop_dc)
-                win32gui.DeleteObject(screenshot_bmp.GetHandle())
-                
-            except (ImportError, Exception):
-                try:
-                    # Method 2: PIL ImageGrab with all monitors
-                    import PIL.ImageGrab as ImageGrab
-                    bbox = (x - half_size, y - half_size, x + half_size, y + half_size)
-                    screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
+                if screenshot is None:
+                    # If platform capture fails, use basic fallback
+                    full_screenshot = pyautogui.screenshot()
+                    img_width, img_height = full_screenshot.size
+                    half_size = capture_size // 2
                     
-                except Exception:
-                    try:
-                        # Method 3: MSS (Multi-Screen Screenshot) if available
-                        import mss
-                        with mss.mss() as sct:
-                            monitor = {
-                                "top": y - half_size,
-                                "left": x - half_size,
-                                "width": capture_size,
-                                "height": capture_size
-                            }
-                            screenshot_mss = sct.grab(monitor)
-                            screenshot = Image.frombytes("RGB", screenshot_mss.size, screenshot_mss.bgra, "raw", "BGRX")
-                            
-                    except (ImportError, Exception):
-                        # Method 4: Fallback to pyautogui with full desktop
-                        full_screenshot = pyautogui.screenshot()
-                        img_width, img_height = full_screenshot.size
-                        
-                        start_x = max(0, min(x - half_size, img_width - capture_size))
-                        start_y = max(0, min(y - half_size, img_height - capture_size))
-                        end_x = min(img_width, start_x + capture_size)
-                        end_y = min(img_height, start_y + capture_size)
-                        
-                        screenshot = full_screenshot.crop((start_x, start_y, end_x, end_y))
+                    start_x = max(0, min(x - half_size, img_width - capture_size))
+                    start_y = max(0, min(y - half_size, img_height - capture_size))
+                    end_x = min(img_width, start_x + capture_size)
+                    end_y = min(img_height, start_y + capture_size)
+                    
+                    screenshot = full_screenshot.crop((start_x, start_y, end_x, end_y))
+                    
+            except Exception as e:
+                # Ultimate fallback
+                try:
+                    screenshot = pyautogui.screenshot().crop((x-7, y-7, x+8, y+8))
+                except:
+                    return  # Skip this update if all methods fail
             
             # Resize and display
             screenshot = screenshot.resize((120, 120), Resampling.NEAREST)
@@ -673,7 +648,7 @@ class ColorPicker:
         while self.picking:
             try:
                 x, y = pyautogui.position()
-                pixel_color = pyautogui.pixel(x, y)
+                pixel_color = self.screen_capture.get_pixel_color(x, y)
                 
                 # Update status with current position
                 self.root.after(0, self.update_preview_status, x, y, pixel_color)
@@ -709,7 +684,7 @@ class ColorPicker:
         if self.picking:
             try:
                 x, y = pyautogui.position()
-                pixel_color = pyautogui.pixel(x, y)
+                pixel_color = self.screen_capture.get_pixel_color(x, y)
                 
                 if self.dual_mode:
                     if self.dual_pick_stage == 1:

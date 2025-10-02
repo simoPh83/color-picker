@@ -1,0 +1,12 @@
+# Core dependencies (all platforms)
+pyautogui>=0.9.54
+webcolors>=1.13
+Pillow>=10.0.0
+numpy>=1.24.0
+mss>=7.0.1
+
+# Windows-specific dependencies
+# pywin32>=306; sys_platform == "win32"
+
+# macOS/Linux alternative (already covered by mss)
+# For better cross-platform support, we rely on mss and PIL
