@@ -15,8 +15,9 @@ class ColorPicker:
     def __init__(self, root):
         self.root = root
         self.root.title("Color Picker")
-        self.root.geometry("300x240")
-        self.root.resizable(False, False)
+        self.root.geometry("300x280")  # Taller to ensure toggle button visibility
+        self.root.resizable(True, True)
+        self.root.minsize(300, 280)  # Increased minimum height for toggle button
         
         # Check macOS screen recording permissions
         if not request_permission_if_needed():
@@ -39,6 +40,10 @@ class ColorPicker:
         self.dual_pick_stage = 1  # 1 for first pick, 2 for second pick
         self.current_color_2 = None
         
+        # Font scaling for resizable window
+        self.base_font_size = 8
+        self.current_font_size = 8
+        
         # Update window title with OS info
         platform_info = self.screen_capture.get_info()
         self.root.title(f"Color Picker ({platform_info['os_type'].title()} - {platform_info['capture_method'].upper()})")
@@ -46,10 +51,157 @@ class ColorPicker:
         # Create GUI
         self.create_widgets()
         
+        # Apply initial font scaling
+        self.update_font_sizes()
+        
         # Bind escape key to cancel picking
         self.root.bind('<Escape>', self.cancel_picking)
+        self.root.bind('<Configure>', self.on_window_resize)
         self.root.focus_set()
         
+    def on_window_resize(self, event):
+        """Handle window resize events to update font sizes"""
+        if event.widget == self.root:
+            # Calculate new font size based on window dimensions
+            width = self.root.winfo_width()
+            height = self.root.winfo_height()
+            
+            # Calculate scale factors (base dimensions: 300x280)
+            width_scale = width / 300
+            height_scale = height / 280
+            scale_factor = min(width_scale, height_scale)  # Use minimum to prevent text from getting too large
+            
+            # Calculate new font size (8-16 range)
+            new_font_size = max(8, min(16, int(self.base_font_size * scale_factor)))
+            
+            if new_font_size != self.current_font_size:
+                self.current_font_size = new_font_size
+                self.update_font_sizes()
+
+    def update_font_sizes(self):
+        """Update font sizes for all UI elements"""
+        try:
+            # Update buttons
+            if hasattr(self, 'pick_button'):
+                self.pick_button.config(font=("Arial", self.current_font_size, "bold"))
+            if hasattr(self, 'dual_mode_btn'):
+                self.dual_mode_btn.config(font=("Arial", self.current_font_size - 1, "bold"))
+            if hasattr(self, 'panel_label_2'):
+                self.panel_label_2.config(font=("Arial", self.current_font_size, "bold"))
+            if hasattr(self, 'copy_rgb_btn'):
+                self.copy_rgb_btn.config(font=("Arial", self.current_font_size - 2))
+            if hasattr(self, 'copy_hex_btn'):
+                self.copy_hex_btn.config(font=("Arial", self.current_font_size - 2))
+            if hasattr(self, 'copy_rgb_btn_2'):
+                self.copy_rgb_btn_2.config(font=("Arial", self.current_font_size - 2))
+            if hasattr(self, 'copy_hex_btn_2'):
+                self.copy_hex_btn_2.config(font=("Arial", self.current_font_size - 2))
+            
+            # Update status labels
+            if hasattr(self, 'status_label'):
+                self.status_label.config(font=("Arial", self.current_font_size))
+            if hasattr(self, 'status_label_2'):
+                self.status_label_2.config(font=("Arial", self.current_font_size))
+            
+            # Update color display label
+            if hasattr(self, 'color_display'):
+                self.color_display.config(font=("Arial", self.current_font_size + 4, "bold"))
+            
+            # Update RGB/HEX labels in single mode
+            if hasattr(self, 'rgb_label'):
+                self.rgb_label.config(font=("Arial", self.current_font_size))
+            if hasattr(self, 'hex_label'):
+                self.hex_label.config(font=("Arial", self.current_font_size))
+            
+            # Update color name labels in single mode
+            if hasattr(self, 'color_name_labels'):
+                for label in self.color_name_labels:
+                    label.config(font=("Arial", self.current_font_size - 1, "bold"))
+            
+            # Update labels in dual mode - use consistent font sizes with single mode
+            if hasattr(self, 'color_display_1'):
+                self.color_display_1.config(font=("Arial", self.current_font_size + 2, "bold"))
+            if hasattr(self, 'color_display_2'):
+                self.color_display_2.config(font=("Arial", self.current_font_size + 2, "bold"))
+            if hasattr(self, 'rgb_label_2'):
+                self.rgb_label_2.config(font=("Arial", self.current_font_size))  # Same as rgb_label
+            if hasattr(self, 'hex_label_2'):
+                self.hex_label_2.config(font=("Arial", self.current_font_size))  # Same as hex_label
+            if hasattr(self, 'comparison_label'):
+                self.comparison_label.config(font=("Arial", self.current_font_size))
+                
+            # Update color name labels in dual mode - use same font size as single mode
+            if hasattr(self, 'color_name_labels_2'):
+                for label in self.color_name_labels_2:
+                    label.config(font=("Arial", self.current_font_size - 1, "bold"))  # Same as single mode
+                
+        except tk.TclError:
+            # Ignore errors if widgets don't exist yet
+            pass
+
+    def lock_label_widths(self):
+        """Lock label widths during picking to prevent layout jumping"""
+        # Calculate stable width based on current window/panel size
+        try:
+            if self.dual_mode:
+                # In dual mode, use half the window width minus padding
+                window_width = max(300, self.root.winfo_width())
+                stable_width = max(200, (window_width // 2) - 60)
+            else:
+                # In single mode, use most of the window width minus padding
+                window_width = max(300, self.root.winfo_width())
+                stable_width = max(280, window_width - 60)
+            
+            # Convert to character width approximation (roughly 8 pixels per character)
+            char_width = max(25, stable_width // 8)
+            
+            # Lock primary panel frame width to prevent expansion
+            if hasattr(self, 'color_name_frame'):
+                self.color_name_frame.config(width=stable_width)
+                self.color_name_frame.pack_propagate(False)  # Prevent frame from expanding
+                
+            # Lock primary panel labels with explicit width setting
+            for label in self.color_name_labels:
+                label.config(width=char_width, wraplength=stable_width)
+                # Force the label to maintain its width by setting anchor and justify
+                label.config(anchor="center", justify="center")
+                
+            # Lock secondary panel frame width if in dual mode
+            if self.dual_mode and hasattr(self, 'color_name_frame_2'):
+                self.color_name_frame_2.config(width=stable_width)
+                self.color_name_frame_2.pack_propagate(False)  # Prevent frame from expanding
+                
+                # Lock secondary panel labels if in dual mode
+                if hasattr(self, 'color_name_labels_2'):
+                    for label in self.color_name_labels_2:
+                        label.config(width=char_width, wraplength=stable_width)
+                        # Force the label to maintain its width by setting anchor and justify
+                        label.config(anchor="center", justify="center")
+        except Exception:
+            # Fallback to default values if anything goes wrong
+            pass
+    
+    def unlock_label_widths(self):
+        """Unlock label widths after picking to allow normal resizing"""
+        # Restore flexible width for primary panel
+        if hasattr(self, 'color_name_frame'):
+            self.color_name_frame.config(width=1)  # Reset to minimal width
+            self.color_name_frame.pack_propagate(True)  # Allow frame to expand again
+            
+        # Restore flexible width for primary panel labels but keep wraplength
+        for label in self.color_name_labels:
+            label.config(width=0, wraplength=280)  # 0 means auto-width, keep original wraplength
+            
+        # Restore flexible width for secondary panel
+        if hasattr(self, 'color_name_frame_2'):
+            self.color_name_frame_2.config(width=1)  # Reset to minimal width
+            self.color_name_frame_2.pack_propagate(True)  # Allow frame to expand again
+            
+        # Restore flexible width for secondary panel labels
+        if hasattr(self, 'color_name_labels_2'):
+            for label in self.color_name_labels_2:
+                label.config(width=0, wraplength=280)  # 0 means auto-width, keep original wraplength
+
     def get_platform_button_styles(self):
         """Get platform-specific button styling to ensure text visibility"""
         platform_info = self.screen_capture.get_info()
@@ -119,11 +271,12 @@ class ColorPicker:
         self.create_panel_widgets(self.right_panel, is_primary=False)
         
         # Bottom buttons frame - use grid layout for proper alignment
-        bottom_frame = tk.Frame(self.root)
-        bottom_frame.pack(fill="x", pady=3)
+        bottom_frame = tk.Frame(self.root, height=50)  # Increased minimum height
+        bottom_frame.pack(fill="x", pady=(5, 10), side="bottom")  # Force to bottom with more padding
+        bottom_frame.pack_propagate(False)  # Maintain minimum height
         
         # Configure grid columns to match the panel layout
-        bottom_frame.grid_columnconfigure(0, weight=0)  # Mode button column
+        bottom_frame.grid_columnconfigure(0, weight=0, minsize=50)  # Mode button column with min size
         bottom_frame.grid_columnconfigure(1, weight=1)  # Left panel column  
         bottom_frame.grid_columnconfigure(2, weight=1)  # Right panel column
         
@@ -131,135 +284,148 @@ class ColorPicker:
         dual_style = self.button_styles['dual_mode_button']
         self.dual_mode_btn = tk.Button(bottom_frame, text="2", 
                                      command=self.toggle_dual_mode,
-                                     width=2, height=1,
+                                     width=3, height=1,  # Slightly wider
                                      **dual_style)
-        self.dual_mode_btn.grid(row=0, column=0, sticky="w", padx=(5, 15))
-        
-        # Left copy buttons frame (aligned under Color 1 panel)
-        left_copy_frame = tk.Frame(bottom_frame)
-        left_copy_frame.grid(row=0, column=1, sticky="")
-        
-        copy_style = self.button_styles['copy_button']
-        self.copy_rgb_btn = tk.Button(left_copy_frame, text="RGB", 
-                                    command=self.copy_rgb,
-                                    state="disabled", width=6,
-                                    **copy_style)
-        self.copy_rgb_btn.pack(side="left", padx=2)
-        
-        self.copy_hex_btn = tk.Button(left_copy_frame, text="HEX", 
-                                    command=self.copy_hex,
-                                    state="disabled", width=6,
-                                    **copy_style)
-        self.copy_hex_btn.pack(side="left", padx=2)
+        self.dual_mode_btn.grid(row=0, column=0, sticky="w", padx=5, pady=5)  # Better spacing
         
         # Right copy buttons frame (aligned under Color 2 panel, initially hidden)
         self.right_copy_frame = tk.Frame(bottom_frame)
         # Will be shown in dual mode at grid position (0, 2)
-        
-        self.copy_rgb_btn_2 = tk.Button(self.right_copy_frame, text="RGB", 
-                                      command=self.copy_rgb_2,
-                                      state="disabled", width=6,
-                                      **copy_style)
-        self.copy_rgb_btn_2.pack(side="left", padx=2)
-        
-        self.copy_hex_btn_2 = tk.Button(self.right_copy_frame, text="HEX", 
-                                      command=self.copy_hex_2,
-                                      state="disabled", width=6,
-                                      **copy_style)
-        self.copy_hex_btn_2.pack(side="left", padx=2)
     
     def create_panel_widgets(self, parent, is_primary=True):
-        """Create the color picker widgets for a panel"""
-        # Top row: Pick button and Color preview side by side
-        top_frame = tk.Frame(parent)
-        top_frame.pack(pady=8, padx=5, fill="x")
+        """Create the color picker widgets for a panel using grid layout"""
+        # Configure grid weights for responsive behavior
+        parent.grid_rowconfigure(0, weight=0)  # Button row - fixed height
+        parent.grid_rowconfigure(1, weight=0)  # Status row - fixed height  
+        parent.grid_rowconfigure(2, weight=0)  # RGB row - fixed height
+        parent.grid_rowconfigure(3, weight=0)  # HEX row - fixed height
+        parent.grid_rowconfigure(4, weight=1)  # Color names row - expandable
+        parent.grid_rowconfigure(5, weight=0)  # Copy buttons row - fixed height
+        parent.grid_columnconfigure(0, weight=1)
+        
+        # Row 0: Button and Color Preview
+        button_frame = tk.Frame(parent)
+        button_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=8)
+        button_frame.grid_columnconfigure(1, weight=1)
         
         if is_primary:
-            # Pick Color Button (only in primary panel) - reduced height
+            # Pick Color Button (only in primary panel)
             pick_style = self.button_styles['pick_button']
-            self.pick_button = tk.Button(top_frame, text="Pick", 
+            self.pick_button = tk.Button(button_frame, text="Pick", 
                                        command=self.start_picking,
-                                       width=8, height=1,
+                                       width=8, height=1,  # Fixed height to match Color 2
                                        **pick_style)
-            self.pick_button.pack(side="left", padx=(0, 8))
+            self.pick_button.grid(row=0, column=0, padx=(0, 8))
             
             # Color Preview (primary)
-            self.color_preview = tk.Label(top_frame, width=15, height=2, 
+            self.color_preview = tk.Label(button_frame, width=15, height=2, 
                                         relief="sunken", bd=2, bg="white")
-            self.color_preview.pack(side="right", fill="x", expand=True)
+            self.color_preview.grid(row=0, column=1, sticky="ew")
         else:
-            # Label for second color panel - same height as pick button
-            panel_label = tk.Label(top_frame, text="Color 2", 
-                                 font=("Arial", 10, "bold"),
-                                 width=8, height=1, relief="raised", bd=1)
-            panel_label.pack(side="left", padx=(0, 8))
+            # Button for second color panel - same type as pick button for consistent height
+            self.panel_label_2 = tk.Button(button_frame, text="Color 2", 
+                                 font=("Arial", 8, "bold"),
+                                 width=8, height=1, relief="raised", bd=1,
+                                 state="disabled")  # Disabled button looks like label but matches height
+            self.panel_label_2.grid(row=0, column=0, padx=(0, 8))
             
             # Color Preview (secondary)
-            self.color_preview_2 = tk.Label(top_frame, width=15, height=2, 
+            self.color_preview_2 = tk.Label(button_frame, width=15, height=2, 
                                           relief="sunken", bd=2, bg="white")
-            self.color_preview_2.pack(side="right", fill="x", expand=True)
+            self.color_preview_2.grid(row=0, column=1, sticky="ew")
         
-        # Status Label - add to both panels
+        # Row 1: Status Label
         if is_primary:
             self.status_label = tk.Label(parent, text="Ready",
                                        font=("Arial", 8), height=1)
-            self.status_label.pack(pady=2)
+            self.status_label.grid(row=1, column=0, pady=2)
         else:
             # Status label for second panel
             self.status_label_2 = tk.Label(parent, text="Waiting...",
                                          font=("Arial", 8), height=1, fg="gray")
-            self.status_label_2.pack(pady=2)
+            self.status_label_2.grid(row=1, column=0, pady=2)
         
-        # Color Information Frame
-        info_frame = tk.Frame(parent)
-        info_frame.pack(pady=5, padx=5, fill="x")
-        
+        # Row 2: RGB Values
         if is_primary:
-            # RGB Values (primary)
-            self.rgb_label = tk.Label(info_frame, text="RGB: -, -, -", 
-                                    font=("Arial", 8), bg="#f0f0f0", relief="sunken", bd=1)
-            self.rgb_label.pack(fill="x", pady=1)
-            
-            # Hex Value (primary)
-            self.hex_label = tk.Label(info_frame, text="#------", 
-                                    font=("Arial", 8), bg="#f0f0f0", relief="sunken", bd=1)
-            self.hex_label.pack(fill="x", pady=1)
-            
-            # Color names (primary)
-            self.color_name_frame = tk.Frame(info_frame)
-            self.color_name_frame.pack(fill="x", pady=2)
+            self.rgb_label = tk.Label(parent, text="RGB: -, -, -", 
+                                    font=("Arial", 8), bg="#f0f0f0", relief="sunken", bd=1,
+                                    anchor="center", justify="center", height=1)
+            self.rgb_label.grid(row=2, column=0, sticky="ew", padx=5, pady=1)
+        else:
+            self.rgb_label_2 = tk.Label(parent, text="RGB: -, -, -", 
+                                      font=("Arial", 8), bg="#f0f0f0", relief="sunken", bd=1,
+                                      anchor="center", justify="center", height=1)
+            self.rgb_label_2.grid(row=2, column=0, sticky="ew", padx=5, pady=1)
+        
+        # Row 3: HEX Values
+        if is_primary:
+            self.hex_label = tk.Label(parent, text="#------", 
+                                    font=("Arial", 8), bg="#f0f0f0", relief="sunken", bd=1,
+                                    anchor="center", justify="center", height=1)
+            self.hex_label.grid(row=3, column=0, sticky="ew", padx=5, pady=1)
+        else:
+            self.hex_label_2 = tk.Label(parent, text="#------", 
+                                      font=("Arial", 8), bg="#f0f0f0", relief="sunken", bd=1,
+                                      anchor="center", justify="center", height=1)
+            self.hex_label_2.grid(row=3, column=0, sticky="ew", padx=5, pady=1)
+        
+        # Row 4: Color Names (expandable area)
+        if is_primary:
+            self.color_name_frame = tk.Frame(parent)
+            self.color_name_frame.grid(row=4, column=0, sticky="nsew", padx=5, pady=2)
             
             self.color_name_labels = []
             for i in range(3):
                 label = tk.Label(self.color_name_frame, text="None", 
                                font=("Arial", 8, "bold"),
                                fg="blue" if i == 0 else "darkblue", 
-                               bg="#f0f0f0", relief="sunken", bd=1, wraplength=280)
+                               bg="#f0f0f0", relief="sunken", bd=1, 
+                               wraplength=280, height=2, width=0, anchor="center", justify="center")  # Center-aligned
                 label.pack(fill="x", pady=1)
                 self.color_name_labels.append(label)
         else:
-            # RGB Values (secondary)
-            self.rgb_label_2 = tk.Label(info_frame, text="RGB: -, -, -", 
-                                      font=("Arial", 8), bg="#f0f0f0", relief="sunken", bd=1)
-            self.rgb_label_2.pack(fill="x", pady=1)
-            
-            # Hex Value (secondary)
-            self.hex_label_2 = tk.Label(info_frame, text="#------", 
-                                      font=("Arial", 8), bg="#f0f0f0", relief="sunken", bd=1)
-            self.hex_label_2.pack(fill="x", pady=1)
-            
-            # Color names (secondary)
-            self.color_name_frame_2 = tk.Frame(info_frame)
-            self.color_name_frame_2.pack(fill="x", pady=2)
+            self.color_name_frame_2 = tk.Frame(parent)
+            self.color_name_frame_2.grid(row=4, column=0, sticky="nsew", padx=5, pady=2)
             
             self.color_name_labels_2 = []
             for i in range(3):
                 label = tk.Label(self.color_name_frame_2, text="None", 
                                font=("Arial", 8, "bold"),
                                fg="blue" if i == 0 else "darkblue", 
-                               bg="#f0f0f0", relief="sunken", bd=1, wraplength=280)
+                               bg="#f0f0f0", relief="sunken", bd=1, 
+                               wraplength=280, height=2, width=0, anchor="center", justify="center")  # Center-aligned
                 label.pack(fill="x", pady=1)
                 self.color_name_labels_2.append(label)
+        
+        # Row 5: Copy Buttons (on separate row for better alignment)
+        copy_frame = tk.Frame(parent)
+        copy_frame.grid(row=5, column=0, pady=5)
+        
+        copy_style = self.button_styles['copy_button']
+        if is_primary:
+            self.copy_rgb_btn = tk.Button(copy_frame, text="RGB", 
+                                        command=self.copy_rgb,
+                                        state="disabled", width=6,
+                                        **copy_style)
+            self.copy_rgb_btn.pack(side="left", padx=2)
+            
+            self.copy_hex_btn = tk.Button(copy_frame, text="HEX", 
+                                        command=self.copy_hex,
+                                        state="disabled", width=6,
+                                        **copy_style)
+            self.copy_hex_btn.pack(side="left", padx=2)
+        else:
+            self.copy_rgb_btn_2 = tk.Button(copy_frame, text="RGB", 
+                                          command=self.copy_rgb_2,
+                                          state="disabled", width=6,
+                                          **copy_style)
+            self.copy_rgb_btn_2.pack(side="left", padx=2)
+            
+            self.copy_hex_btn_2 = tk.Button(copy_frame, text="HEX", 
+                                          command=self.copy_hex_2,
+                                          state="disabled", width=6,
+                                          **copy_style)
+            self.copy_hex_btn_2.pack(side="left", padx=2)
         
     def toggle_dual_mode(self):
         """Toggle between single and dual color picker mode"""
@@ -272,11 +438,14 @@ class ColorPicker:
             # Show right panel
             self.right_panel.pack(side="right", fill="both", expand=True, padx=5, pady=5)
             
-            # Show right copy buttons aligned with the second panel
-            self.right_copy_frame.grid(row=0, column=2, sticky="")
+            # Resize window to accommodate both panels with equal widths
+            current_width = self.root.winfo_width()
+            current_height = self.root.winfo_height()
+            new_width = max(600, current_width * 2 if current_width < 400 else current_width + 300)
+            self.root.geometry(f"{new_width}x{current_height}")
             
-            # Resize window to accommodate both panels
-            self.root.geometry("600x240")
+            # Set minimum size for dual mode to prevent cutting off elements
+            self.root.minsize(600, 280)
             
             # Update pick button text
             self.pick_button.config(text="Pick 1")
@@ -300,11 +469,14 @@ class ColorPicker:
             # Hide right panel
             self.right_panel.pack_forget()
             
-            # Hide right copy buttons
-            self.right_copy_frame.grid_remove()
-            
             # Resize window back to single mode
-            self.root.geometry("300x240")
+            current_width = self.root.winfo_width()
+            current_height = self.root.winfo_height()
+            new_width = max(300, current_width // 2 if current_width > 400 else 300)
+            self.root.geometry(f"{new_width}x{current_height}")
+            
+            # Reset minimum size for single mode
+            self.root.minsize(300, 280)
             
             # Reset pick button text
             self.pick_button.config(text="Pick")
@@ -496,6 +668,9 @@ class ColorPicker:
         # Create magnifier window
         self.create_magnifier()
         
+        # Lock label widths to prevent layout jumping during picking
+        self.lock_label_widths()
+        
         # Start monitoring for spacebar press
         self.root.focus_set()
         self.root.bind('<space>', self.pick_color_at_mouse)
@@ -568,6 +743,8 @@ class ColorPicker:
                         self.destroy_magnifier()
                         self.root.unbind('<space>')
                         self.root.unbind('<KeyPress-space>')
+                        # Unlock label widths after dual mode picking completes
+                        self.unlock_label_widths()
                         self.pick_button.config(state="normal", text="Pick")
                         # Calculate and display color similarity
                         similarity_text, similarity_color = calculate_color_similarity(self.current_color, self.current_color_2)
@@ -604,6 +781,8 @@ class ColorPicker:
             # Unbind the spacebar
             self.root.unbind('<space>')
             self.root.unbind('<KeyPress-space>')
+            # Unlock label widths to allow normal resizing
+            self.unlock_label_widths()
         
         self.current_color = rgb_color
         r, g, b = rgb_color
@@ -639,6 +818,10 @@ class ColorPicker:
         # Reset button and cursor
         self.pick_button.config(state="normal", text="Pick")
         self.root.config(cursor="")
+        
+        # Unlock label widths if picking is complete
+        if not self.picking:
+            self.unlock_label_widths()
         self.status_label.config(text="Picked!", fg="green")
         
         # Enable copy buttons

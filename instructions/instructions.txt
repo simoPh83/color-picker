@@ -33,7 +33,7 @@ pyinstaller color_picker.spec --clean
 COMMIT A version
 
 git add .
-git commit -m "MacOs integration"
+git commit -m "Fixed various layout issues. Window is now resizable"
 git push
 
 
