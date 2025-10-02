@@ -3,7 +3,11 @@
 Test script to verify platform-aware screen capture functionality
 """
 
-from platform_capture import PlatformScreenCapture
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.platform_capture import PlatformScreenCapture
 import pyautogui
 
 def test_platform_detection():

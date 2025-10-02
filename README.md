@@ -2,7 +2,26 @@
 
 
 
-A sophisticated dual-mode color picker application with scientific color detection, built with Python and Tkinter.A Windows-compatible color picker tool that identifies colors using simple names (red, green, blue, etc.) rather than fancy names.
+A sophisticated dual-mode color picker application with scientific color detection, built with Python and Tkinter.A Windows-compatible color picker tool that identi```
+color-picker/
+├── color_picker.py           # Main application
+├── utils/                    # Utility modules
+│   ├── __init__.py
+│   ├── platform_capture.py  # OS-aware screen capture
+│   └── macos_permissions.py # macOS permission handling
+├── tests/                    # Test files
+│   ├── test_buttons.py
+│   └── test_platform.py
+├── requirements/             # Dependency files
+│   ├── requirements.txt
+│   └── requirements-macos.txt
+├── build_scripts/           # Build tools
+│   ├── build_macos.sh
+│   ├── color_picker_macos.spec
+│   └── build_executable.ps1
+├── instructions/            # Documentation
+└── venv/                   # Virtual environment (created)
+```olors using simple names (red, green, blue, etc.) rather than fancy names.
 
 
 

@@ -1,0 +1,9 @@
+cd "/Volumes/Marketing/Simone Morciano/python working folder/colour picker/color-picker" && source venv/bin/activate && python color_picker.py
+
+TO EXECUTE
+venv/bin/activate && python color_picker.py
+
+
+git add .
+git commit -m "MacOs integration"
+git push

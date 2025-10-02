@@ -7,8 +7,8 @@ import time
 from PIL import Image, ImageTk
 from PIL.Image import Resampling
 import numpy as np
-from platform_capture import PlatformScreenCapture
-from macos_permissions import request_permission_if_needed
+from utils.platform_capture import PlatformScreenCapture
+from utils.macos_permissions import request_permission_if_needed
 
 class ColorPicker:
     def __init__(self, root):
@@ -26,6 +26,9 @@ class ColorPicker:
         
         # Initialize platform-aware screen capture
         self.screen_capture = PlatformScreenCapture()
+        
+        # Get platform-specific styling
+        self.button_styles = self.get_platform_button_styles()
         
         # Variables
         self.picking = False
@@ -45,6 +48,55 @@ class ColorPicker:
         # Bind escape key to cancel picking
         self.root.bind('<Escape>', self.cancel_picking)
         self.root.focus_set()
+        
+    def get_platform_button_styles(self):
+        """Get platform-specific button styling to ensure text visibility"""
+        platform_info = self.screen_capture.get_info()
+        
+        if platform_info['os_type'] == 'macos':
+            # macOS-specific styling - use minimal styling for maximum compatibility
+            return {
+                'pick_button': {
+                    'relief': 'raised',
+                    'borderwidth': 2,
+                    'font': ('Arial', 10, 'bold'),
+                    'fg': 'black'  # Only specify text color, let system handle background
+                },
+                'dual_mode_button': {
+                    'relief': 'raised',
+                    'borderwidth': 2,
+                    'font': ('Arial', 8, 'bold'),
+                    'fg': 'black'  # Only specify text color
+                },
+                'copy_button': {
+                    'relief': 'raised',
+                    'borderwidth': 1,
+                    'font': ('Arial', 8),
+                    'fg': 'black'  # Only specify text color
+                }
+            }
+        else:
+            # Windows/Linux styling - keep original colors
+            return {
+                'pick_button': {
+                    'bg': '#4CAF50',
+                    'fg': 'white',
+                    'activebackground': '#45a049',
+                    'activeforeground': 'white'
+                },
+                'dual_mode_button': {
+                    'bg': '#666666',
+                    'fg': 'white',
+                    'activebackground': '#555555',
+                    'activeforeground': 'white'
+                },
+                'copy_button': {
+                    'bg': 'lightgray',
+                    'fg': 'black',
+                    'activebackground': 'gray',
+                    'activeforeground': 'black'
+                }
+            }
         
     def create_widgets(self):
         # Main container that will expand for dual mode
@@ -75,24 +127,28 @@ class ColorPicker:
         bottom_frame.grid_columnconfigure(2, weight=1)  # Right panel column
         
         # Dual mode toggle button (leftmost, always stays in position)
+        dual_style = self.button_styles['dual_mode_button']
         self.dual_mode_btn = tk.Button(bottom_frame, text="2", 
                                      command=self.toggle_dual_mode,
-                                     width=2, height=1, font=("Arial", 8),
-                                     bg="#666666", fg="white")
+                                     width=2, height=1,
+                                     **dual_style)
         self.dual_mode_btn.grid(row=0, column=0, sticky="w", padx=(5, 15))
         
         # Left copy buttons frame (aligned under Color 1 panel)
         left_copy_frame = tk.Frame(bottom_frame)
         left_copy_frame.grid(row=0, column=1, sticky="")
         
+        copy_style = self.button_styles['copy_button']
         self.copy_rgb_btn = tk.Button(left_copy_frame, text="RGB", 
                                     command=self.copy_rgb,
-                                    state="disabled", width=6, font=("Arial", 8))
+                                    state="disabled", width=6,
+                                    **copy_style)
         self.copy_rgb_btn.pack(side="left", padx=2)
         
         self.copy_hex_btn = tk.Button(left_copy_frame, text="HEX", 
                                     command=self.copy_hex,
-                                    state="disabled", width=6, font=("Arial", 8))
+                                    state="disabled", width=6,
+                                    **copy_style)
         self.copy_hex_btn.pack(side="left", padx=2)
         
         # Right copy buttons frame (aligned under Color 2 panel, initially hidden)
@@ -101,12 +157,14 @@ class ColorPicker:
         
         self.copy_rgb_btn_2 = tk.Button(self.right_copy_frame, text="RGB", 
                                       command=self.copy_rgb_2,
-                                      state="disabled", width=6, font=("Arial", 8))
+                                      state="disabled", width=6,
+                                      **copy_style)
         self.copy_rgb_btn_2.pack(side="left", padx=2)
         
         self.copy_hex_btn_2 = tk.Button(self.right_copy_frame, text="HEX", 
                                       command=self.copy_hex_2,
-                                      state="disabled", width=6, font=("Arial", 8))
+                                      state="disabled", width=6,
+                                      **copy_style)
         self.copy_hex_btn_2.pack(side="left", padx=2)
     
     def create_panel_widgets(self, parent, is_primary=True):
@@ -117,11 +175,11 @@ class ColorPicker:
         
         if is_primary:
             # Pick Color Button (only in primary panel) - reduced height
+            pick_style = self.button_styles['pick_button']
             self.pick_button = tk.Button(top_frame, text="Pick", 
                                        command=self.start_picking,
-                                       bg="#4CAF50", fg="white",
-                                       font=("Arial", 10, "bold"),
-                                       width=8, height=1)
+                                       width=8, height=1,
+                                       **pick_style)
             self.pick_button.pack(side="left", padx=(0, 8))
             
             # Color Preview (primary)
