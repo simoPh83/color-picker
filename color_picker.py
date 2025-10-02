@@ -9,6 +9,7 @@ from PIL.Image import Resampling
 import numpy as np
 from utils.platform_capture import PlatformScreenCapture
 from utils.macos_permissions import request_permission_if_needed
+from utils.comparisonEngine import calculate_color_similarity, get_simple_color_name
 
 class ColorPicker:
     def __init__(self, root):
@@ -260,204 +261,6 @@ class ColorPicker:
                 label.pack(fill="x", pady=1)
                 self.color_name_labels_2.append(label)
         
-    def get_simple_color_name(self, rgb):
-        """Convert RGB to simple color name using scientific CSS3 color matching"""
-        r, g, b = rgb
-        
-        try:
-            # Find the closest CSS3 colors and return top 3
-            return self.get_top_color_matches(rgb)
-        except Exception:
-            # Fallback to basic detection
-            return ["unknown"]
-    
-    def get_top_color_matches(self, rgb, top_n=3):
-        """Get top N closest color matches using CSS3 colors"""
-        target_r, target_g, target_b = rgb
-        distances = []
-        
-        # Get all CSS3 color names
-        css3_names = webcolors.names('css3')
-        
-        for name in css3_names:
-            try:
-                css_rgb = webcolors.name_to_rgb(name, spec='css3')
-                css_r, css_g, css_b = css_rgb
-                
-                # Calculate Euclidean distance
-                distance = ((target_r - css_r) ** 2 + 
-                           (target_g - css_g) ** 2 + 
-                           (target_b - css_b) ** 2) ** 0.5
-                
-                # Map to simple color name
-                simple_name = self.map_css_to_simple(name)
-                distances.append((distance, simple_name, name, css_rgb))
-                
-            except ValueError:
-                continue
-        
-        # Sort by distance and return top matches
-        distances.sort()
-        return [(simple_name, css_name, distance) for distance, simple_name, css_name, css_rgb in distances[:top_n]]
-    
-    def map_css_to_simple(self, css_name):
-        """Map CSS3 color names to simple color names"""
-        css_name = css_name.lower()
-        
-        # Comprehensive mapping from CSS colors to simple names
-        color_mapping = {
-            # Reds
-            'red': 'red', 'darkred': 'red', 'crimson': 'red', 'firebrick': 'red',
-            'indianred': 'red', 'lightcoral': 'red', 'salmon': 'red', 'darksalmon': 'red',
-            'lightsalmon': 'red', 'tomato': 'red', 'orangered': 'red',
-            
-            # Oranges
-            'orange': 'orange', 'darkorange': 'orange', 'coral': 'orange', 
-            'chocolate': 'orange', 'sandybrown': 'orange', 'peru': 'orange',
-            'sienna': 'orange', 'saddlebrown': 'orange',
-            
-            # Yellows
-            'yellow': 'yellow', 'gold': 'yellow', 'khaki': 'yellow', 'darkkhaki': 'yellow',
-            'palegoldenrod': 'yellow', 'goldenrod': 'yellow', 'darkgoldenrod': 'yellow',
-            'lightyellow': 'yellow', 'lemonchiffon': 'yellow', 'lightgoldenrodyellow': 'yellow',
-            'papayawhip': 'yellow', 'moccasin': 'yellow', 'peachpuff': 'yellow',
-            'wheat': 'yellow', 'navajowhite': 'yellow',
-            
-            # Yellow-Greens (the key ones!)
-            'burlywood': 'yellow-green', 'tan': 'yellow-green', 'greenyellow': 'yellow-green', 
-            'yellowgreen': 'yellow-green', 'olivedrab': 'yellow-green',
-            'darkolivegreen': 'yellow-green', 'olive': 'yellow-green',
-            
-            # Greens
-            'green': 'green', 'darkgreen': 'green', 'forestgreen': 'green', 'limegreen': 'green',
-            'lime': 'green', 'seagreen': 'green', 'mediumseagreen': 'green', 'springgreen': 'green',
-            'mediumspringgreen': 'green', 'darkseagreen': 'green', 'lightgreen': 'green',
-            'palegreen': 'green', 'lawngreen': 'green', 'chartreuse': 'green',
-            
-            # Blues
-            'blue': 'blue', 'darkblue': 'blue', 'mediumblue': 'blue', 'navy': 'blue',
-            'midnightblue': 'blue', 'royalblue': 'blue', 'steelblue': 'blue',
-            'dodgerblue': 'blue', 'deepskyblue': 'blue', 'cornflowerblue': 'blue',
-            'skyblue': 'blue', 'lightskyblue': 'blue', 'lightsteelblue': 'blue',
-            'lightblue': 'blue', 'powderblue': 'blue', 'cadetblue': 'blue',
-            'aqua': 'blue', 'cyan': 'blue', 'lightcyan': 'blue', 'paleturquoise': 'blue',
-            'aquamarine': 'blue-green', 'turquoise': 'blue-green', 'mediumturquoise': 'blue-green',
-            'darkturquoise': 'blue-green', 'lightseagreen': 'blue-green', 'teal': 'blue-green',
-            'darkcyan': 'blue-green',
-            
-            # Purples and Magentas
-            'purple': 'purple', 'indigo': 'purple', 'darkviolet': 'purple', 'darkorchid': 'purple',
-            'darkmagenta': 'magenta', 'violet': 'purple', 'plum': 'purple', 'thistle': 'purple',
-            'orchid': 'purple', 'mediumorchid': 'purple', 'mediumpurple': 'purple',
-            'blueviolet': 'purple', 'slateblue': 'purple', 'darkslateblue': 'purple',
-            'mediumslateblue': 'purple', 'magenta': 'magenta', 'fuchsia': 'magenta',
-            'deeppink': 'magenta', 'hotpink': 'pink', 'lightpink': 'pink', 'pink': 'pink',
-            'mistyrose': 'pink', 'lavenderblush': 'pink',
-            
-            # Browns
-            'brown': 'brown', 'maroon': 'brown', 'rosybrown': 'brown',
-            
-            # Grays and Whites
-            'white': 'white', 'snow': 'white', 'honeydew': 'white', 'mintcream': 'white',
-            'azure': 'white', 'aliceblue': 'white', 'ghostwhite': 'white', 'whitesmoke': 'white',
-            'seashell': 'white', 'beige': 'white', 'oldlace': 'white', 'floralwhite': 'white',
-            'ivory': 'white', 'antiquewhite': 'white', 'linen': 'white', 'lavender': 'white',
-            'black': 'black', 'dimgray': 'gray', 'dimgrey': 'gray', 'gray': 'gray', 'grey': 'gray',
-            'darkgray': 'gray', 'darkgrey': 'gray', 'silver': 'gray', 'lightgray': 'gray',
-            'lightgrey': 'gray', 'gainsboro': 'gray', 'slategray': 'gray', 'slategrey': 'gray',
-            'lightslategray': 'gray', 'lightslategrey': 'gray', 'darkslategray': 'gray',
-            'darkslategrey': 'gray',
-        }
-        
-        return color_mapping.get(css_name, css_name)
-    
-    def calculate_color_similarity(self, color1, color2):
-        """Calculate similarity between two RGB colors and return detailed assessment"""
-        if not color1 or not color2:
-            return "No comparison available", "gray"
-        
-        r1, g1, b1 = color1
-        r2, g2, b2 = color2
-        
-        # Calculate Euclidean distance in RGB space
-        distance = ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
-        
-        # Get basic color categories for both colors
-        color1_matches = self.get_simple_color_name(color1)
-        color2_matches = self.get_simple_color_name(color2)
-        
-        basic_color1 = color1_matches[0][0] if color1_matches else "unknown"
-        basic_color2 = color2_matches[0][0] if color2_matches else "unknown"
-        
-        # Provide meaningful similarity assessment
-        if distance == 0:
-            assessment = "Identical colors"
-            color = "purple"
-        elif distance < 10:
-            assessment = "Nearly identical"
-            color = "darkgreen"
-        elif distance < 25:
-            assessment = "Very similar"
-            color = "green"
-        elif distance < 50:
-            assessment = "Similar"
-            color = "olive"
-        elif distance < 100:
-            assessment = "Somewhat different"
-            color = "orange"
-        elif distance < 150:
-            assessment = "Different"
-            color = "darkorange"
-        else:
-            assessment = "Very different"
-            color = "red"
-        
-        # Add component analysis if colors are in the same basic category
-        component_analysis = ""
-        if basic_color1 == basic_color2 and distance > 5:  # Only if same category and noticeably different
-            component_analysis = self.analyze_color_components(color1, color2)
-            if component_analysis:
-                assessment += f" ({component_analysis})"
-        
-        return f"{assessment} (Δ{distance:.1f})", color
-    
-    def analyze_color_components(self, color1, color2):
-        """Analyze which color has more of each component (red, green, blue)"""
-        r1, g1, b1 = color1
-        r2, g2, b2 = color2
-        
-        # Calculate differences in each component
-        red_diff = r2 - r1
-        green_diff = g2 - g1
-        blue_diff = b2 - b1
-        
-        # Find the most significant difference (threshold of 10 to avoid noise)
-        threshold = 10
-        components = []
-        
-        if abs(red_diff) > threshold:
-            if red_diff > 0:
-                components.append("more red")
-            else:
-                components.append("less red")
-        
-        if abs(green_diff) > threshold:
-            if green_diff > 0:
-                components.append("more green")
-            else:
-                components.append("less green")
-        
-        if abs(blue_diff) > threshold:
-            if blue_diff > 0:
-                components.append("more blue")
-            else:
-                components.append("less blue")
-        
-        # Return the most significant differences (max 2 to keep it readable)
-        if components:
-            return "Color 2: " + ", ".join(components[:2])
-        return ""
-    
     def toggle_dual_mode(self):
         """Toggle between single and dual color picker mode"""
         if not self.dual_mode:
@@ -483,7 +286,7 @@ class ColorPicker:
             if hasattr(self, 'status_label_2'):
                 # If both colors are already available, show similarity
                 if hasattr(self, 'current_color') and hasattr(self, 'current_color_2') and self.current_color and self.current_color_2:
-                    similarity_text, similarity_color = self.calculate_color_similarity(self.current_color, self.current_color_2)
+                    similarity_text, similarity_color = calculate_color_similarity(self.current_color, self.current_color_2)
                     self.status_label_2.config(text=similarity_text, fg=similarity_color)
                 else:
                     self.status_label_2.config(text="Waiting...", fg="gray")
@@ -537,14 +340,15 @@ class ColorPicker:
         self.hex_label_2.config(text=hex_color.upper())
         
         # Get color matches (top 3)
-        color_matches = self.get_simple_color_name(rgb_color)
+        color_matches = get_simple_color_name(rgb_color)
         
         # Update the 3 color name labels for second color
         for i, label in enumerate(self.color_name_labels_2):
             if i < len(color_matches):
                 simple_name, css_name, distance = color_matches[i]
                 if i == 0:
-                    display_text = f"{css_name.title()} ({simple_name})"
+                    # Primary match - show CSS name with simple name and distance
+                    display_text = f"{css_name.title()} ({simple_name}, {distance:.0f})"
                     label.config(text=display_text)
                 else:
                     display_text = f"{css_name.title()} ({simple_name}, {distance:.0f})"
@@ -723,7 +527,7 @@ class ColorPicker:
         """Update status with preview information"""
         if self.picking:
             r, g, b = rgb_color
-            color_matches = self.get_simple_color_name(rgb_color)
+            color_matches = get_simple_color_name(rgb_color)
             if color_matches and len(color_matches) > 0:
                 css_name = color_matches[0][1]  # Get the CSS name from first match
                 simple_name = color_matches[0][0]  # Get the simple name
@@ -766,7 +570,7 @@ class ColorPicker:
                         self.root.unbind('<KeyPress-space>')
                         self.pick_button.config(state="normal", text="Pick")
                         # Calculate and display color similarity
-                        similarity_text, similarity_color = self.calculate_color_similarity(self.current_color, self.current_color_2)
+                        similarity_text, similarity_color = calculate_color_similarity(self.current_color, self.current_color_2)
                         self.status_label.config(text="Both colors picked!", fg="green")
                         self.status_label_2.config(text=similarity_text, fg=similarity_color)
                 else:
@@ -815,15 +619,15 @@ class ColorPicker:
         self.hex_label.config(text=hex_color.upper())
         
         # Get color matches (top 3)
-        color_matches = self.get_simple_color_name(rgb_color)
+        color_matches = get_simple_color_name(rgb_color)
         
         # Update the 3 color name labels
         for i, label in enumerate(self.color_name_labels):
             if i < len(color_matches):
                 simple_name, css_name, distance = color_matches[i]
                 if i == 0:
-                    # Primary match - show CSS name with simple name in brackets
-                    display_text = f"{css_name.title()} ({simple_name})"
+                    # Primary match - show CSS name with simple name and distance
+                    display_text = f"{css_name.title()} ({simple_name}, {distance:.0f})"
                     label.config(text=display_text)
                 else:
                     # Secondary matches - show CSS name with simple name and distance
