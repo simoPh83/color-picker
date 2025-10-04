@@ -7,9 +7,95 @@ import time
 from PIL import Image, ImageTk
 from PIL.Image import Resampling
 import numpy as np
+import re
 from utils.platform_capture import PlatformScreenCapture
 from utils.macos_permissions import request_permission_if_needed
 from utils.comparisonEngine import calculate_color_similarity, get_simple_color_name
+
+
+def rgb_to_hsl(r, g, b):
+    """
+    Convert RGB values to HSL (Hue, Saturation, Lightness).
+    
+    Args:
+        r, g, b (int): RGB values (0-255)
+    
+    Returns:
+        tuple: (hue, saturation, lightness) where:
+            - hue: 0-360 degrees
+            - saturation: 0-100 percent
+            - lightness: 0-100 percent
+    """
+    # Normalize RGB values to 0-1 range
+    r_norm = r / 255.0
+    g_norm = g / 255.0
+    b_norm = b / 255.0
+    
+    # Find max and min values
+    max_val = max(r_norm, g_norm, b_norm)
+    min_val = min(r_norm, g_norm, b_norm)
+    
+    # Calculate lightness
+    lightness = (max_val + min_val) / 2.0
+    
+    # Calculate saturation and hue
+    if max_val == min_val:
+        # Achromatic (gray)
+        saturation = 0.0
+        hue = 0.0
+    else:
+        # Calculate saturation
+        if lightness < 0.5:
+            saturation = (max_val - min_val) / (max_val + min_val)
+        else:
+            saturation = (max_val - min_val) / (2.0 - max_val - min_val)
+        
+        # Calculate hue
+        delta = max_val - min_val
+        
+        if max_val == r_norm:
+            hue = ((g_norm - b_norm) / delta) % 6
+        elif max_val == g_norm:
+            hue = (b_norm - r_norm) / delta + 2
+        else:  # max_val == b_norm
+            hue = (r_norm - g_norm) / delta + 4
+        
+        hue *= 60  # Convert to degrees
+    
+    # Convert to percentages and ensure proper ranges
+    hue = round(hue, 1)
+    saturation = round(saturation * 100, 1)
+    lightness = round(lightness * 100, 1)
+    
+    return hue, saturation, lightness
+
+
+def copy_to_clipboard(text):
+    """
+    Copy text to system clipboard.
+    
+    Args:
+        text (str): Text to copy to clipboard. If empty or None, clears clipboard.
+    """
+    try:
+        import tkinter as tk_clipboard
+        # Create a temporary root if one doesn't exist
+        temp_root = tk_clipboard.Tk()
+        temp_root.withdraw()  # Hide the window
+        
+        if text:
+            temp_root.clipboard_clear()
+            temp_root.clipboard_append(text)
+            temp_root.update()  # Ensure the clipboard is updated
+        else:
+            temp_root.clipboard_clear()
+            temp_root.update()
+        
+        temp_root.destroy()
+    except Exception as e:
+        # Silently fail - clipboard functionality is non-critical
+        pass
+
 
 class ColorPicker:
     def __init__(self, root):
@@ -455,8 +541,10 @@ class ColorPicker:
             if hasattr(self, 'status_label_2'):
                 # If both colors are already available, show similarity
                 if hasattr(self, 'current_color') and hasattr(self, 'current_color_2') and self.current_color and self.current_color_2:
-                    similarity_text, similarity_color = calculate_color_similarity(self.current_color, self.current_color_2)
+                    similarity_text, similarity_color, clipboard_text = calculate_color_similarity(self.current_color, self.current_color_2)
                     self.status_label_2.config(text=similarity_text, fg=similarity_color)
+                    # Copy hue comparison to clipboard
+                    copy_to_clipboard(clipboard_text)
                 else:
                     self.status_label_2.config(text="Waiting...", fg="gray")
             
@@ -493,6 +581,13 @@ class ColorPicker:
         self.picking = False
         self.current_color_2 = rgb_color
         r, g, b = rgb_color
+        
+        # Calculate and print HSL values for debug (Color 2)
+        hue, saturation, lightness = rgb_to_hsl(r, g, b)
+        print(f"DEBUG - Color 2 picked: RGB({r}, {g}, {b})")
+        print(f"DEBUG - Color 2 HSL values: H={hue}°, S={saturation}%, L={lightness}%")
+        print(f"DEBUG - Color 2 Hex: {r:02x}{g:02x}{b:02x}")
+        print("-" * 50)
         
         # Destroy magnifier
         self.destroy_magnifier()
@@ -747,9 +842,11 @@ class ColorPicker:
                         self.unlock_label_widths()
                         self.pick_button.config(state="normal", text="Pick")
                         # Calculate and display color similarity
-                        similarity_text, similarity_color = calculate_color_similarity(self.current_color, self.current_color_2)
+                        similarity_text, similarity_color, clipboard_text = calculate_color_similarity(self.current_color, self.current_color_2)
                         self.status_label.config(text="Both colors picked!", fg="green")
                         self.status_label_2.config(text=similarity_text, fg=similarity_color)
+                        # Copy hue comparison to clipboard
+                        copy_to_clipboard(clipboard_text)
                 else:
                     self.update_color_display(pixel_color)
                     
@@ -786,6 +883,13 @@ class ColorPicker:
         
         self.current_color = rgb_color
         r, g, b = rgb_color
+        
+        # Calculate and print HSL values for debug
+        hue, saturation, lightness = rgb_to_hsl(r, g, b)
+        print(f"DEBUG - Color picked: RGB({r}, {g}, {b})")
+        print(f"DEBUG - HSL values: H={hue}°, S={saturation}%, L={lightness}%")
+        print(f"DEBUG - Hex: {r:02x}{g:02x}{b:02x}")
+        print("-" * 50)
         
         # Update color preview
         hex_color = f"#{r:02x}{g:02x}{b:02x}"

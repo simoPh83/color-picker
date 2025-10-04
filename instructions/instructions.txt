@@ -1,7 +1,13 @@
 cd "/Volumes/Marketing/Simone Morciano/python working folder/colour picker/color-picker" && source venv/bin/activate && python color_picker.py
 
+
+0) Install git   macOS:
+Homebrew: brew install git
+Xcode Command Line Tools: xcode-select --install
+Download from: https://git-scm.com/download/mac
+
 1) Clone the Repository
-git clone https://github.com/simoPh83/color-picker.git
+git clone https://github.com/simoePh83/color-picker.git
 cd color-picker
 
 2) Create the Virtual ENVIRONMENT
