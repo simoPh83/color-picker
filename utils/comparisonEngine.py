@@ -419,9 +419,9 @@ def analyze_hue_direction_first_neutral_only(hue1, hue2, threshold=15, subdivisi
             # Show movement toward the next color category using consistent " -> " notation
             return f"{display1} -> {next_simple} ({hue_diff:+.1f}deg)"
         else:
-            # Fallback to basic directional description
-            direction = "clockwise" if hue_diff > 0 else "counter-clockwise"
-            return f"{display1} ({direction} {abs(hue_diff):.1f}deg)"
+            # This case should never occur with proper mapping
+            # If it does, treat as negligible difference
+            return "same"
     
     # Show transition from first to second (different categories)
     return f"{display1} -> {display2} ({hue_diff:+.1f}deg)"
@@ -518,7 +518,9 @@ def analyze_hue_direction(hue1, hue2, threshold=15, subdivisions=12, saturation1
 
 def get_hue_name_from_degrees(hue_degrees, subdivisions=12):
     """
-    Get hue name from degrees using hues_list.
+    Get hue name from degrees using distance to apex points (color centers).
+    Each value in hues_list represents the center/apex of that color.
+    Red appears at both 0° and 360° to handle the circular boundary properly.
     
     Args:
         hue_degrees (float): Hue in degrees (0-360)
@@ -533,17 +535,16 @@ def get_hue_name_from_degrees(hue_degrees, subdivisions=12):
     hue_names = hues[subdivisions][0]
     hue_values = hues[subdivisions][1]
     
-    # Handle neutral/achromatic
-    if hue_degrees == 0:
-        return "neutral"
+    # Normalize hue to 0-360 range
+    normalized_hue = hue_degrees % 360
     
-    # Find closest hue
+    # Find closest hue using circular distance
     min_distance = 360
     closest_index = 0
     
     for i, hue_value in enumerate(hue_values):
         # Calculate circular distance
-        distance = abs(hue_degrees - hue_value)
+        distance = abs(normalized_hue - hue_value)
         if distance > 180:
             distance = 360 - distance
         
