@@ -28,12 +28,18 @@ class PlatformScreenCapture:
     def get_optimal_capture_method(self) -> str:
         """Get the optimal capture method for the current OS"""
         if self.os_type == 'macos':
-            # MSS works excellently on macOS with multi-monitor support
+            # Try PyObjC first for native macOS support
             try:
-                import mss
-                return 'mss'
+                import Quartz
+                import Cocoa
+                return 'pyobjc'
             except ImportError:
-                return 'pil'
+                # Fallback to MSS if PyObjC not available
+                try:
+                    import mss
+                    return 'mss'
+                except ImportError:
+                    return 'pil'
         elif self.os_type == 'windows':
             # Try Windows API first, then fall back to MSS/PIL
             try:
@@ -59,7 +65,9 @@ class PlatformScreenCapture:
         Returns PIL Image or None if capture fails
         """
         try:
-            if self.capture_method == 'mss':
+            if self.capture_method == 'pyobjc':
+                return self._capture_with_pyobjc(x, y, capture_size)
+            elif self.capture_method == 'mss':
                 return self._capture_with_mss(x, y, capture_size)
             elif self.capture_method == 'win32':
                 return self._capture_with_win32(x, y, capture_size)
@@ -88,6 +96,70 @@ class PlatformScreenCapture:
             screenshot_mss = sct.grab(monitor)
             screenshot = Image.frombytes("RGB", screenshot_mss.size, screenshot_mss.bgra, "raw", "BGRX")
             
+        return screenshot
+    
+    def _capture_with_pyobjc(self, x: int, y: int, capture_size: int) -> Image.Image:
+        """Capture using PyObjC (native macOS)"""
+        import Quartz
+        from AppKit import NSScreen
+        
+        half_size = capture_size // 2
+        
+        # Use logical coordinates directly - CGDisplayCreateImageForRect handles scaling automatically
+        capture_rect = Quartz.CGRectMake(
+            x - half_size,
+            y - half_size,
+            capture_size,
+            capture_size
+        )
+        
+        # Capture the screen area using CGDisplayCreateImageForRect
+        display_id = Quartz.CGMainDisplayID()
+        cg_image = Quartz.CGDisplayCreateImageForRect(display_id, capture_rect)
+        
+        if not cg_image:
+            raise Exception("Failed to capture screen with PyObjC")
+        
+        # Get image dimensions
+        width = Quartz.CGImageGetWidth(cg_image)
+        height = Quartz.CGImageGetHeight(cg_image)
+        
+        # Create a bitmap context to get RGB data
+        bytes_per_pixel = 4
+        bytes_per_row = width * bytes_per_pixel
+        color_space = Quartz.CGColorSpaceCreateDeviceRGB()
+        
+        # Create bitmap context
+        bitmap_data = bytearray(height * bytes_per_row)
+        bitmap_context = Quartz.CGBitmapContextCreate(
+            bitmap_data,
+            width,
+            height,
+            8,  # bits per component
+            bytes_per_row,
+            color_space,
+            Quartz.kCGImageAlphaPremultipliedLast
+        )
+        
+        # Draw the image into the bitmap context
+        Quartz.CGContextDrawImage(bitmap_context, Quartz.CGRectMake(0, 0, width, height), cg_image)
+        
+        # Convert RGBA to RGB
+        rgb_data = []
+        for i in range(0, len(bitmap_data), 4):
+            r, g, b, a = bitmap_data[i:i+4]
+            rgb_data.extend([r, g, b])
+        
+        screenshot = Image.frombytes('RGB', (width, height), bytes(rgb_data))
+        
+        # If the captured image is larger than expected (due to Retina scaling),
+        # resize it to the requested logical size
+        main_screen = NSScreen.mainScreen()
+        backing_scale = main_screen.backingScaleFactor()
+        
+        if backing_scale > 1.0 and (width > capture_size or height > capture_size):
+            screenshot = screenshot.resize((capture_size, capture_size), Image.Resampling.LANCZOS)
+        
         return screenshot
     
     def _capture_with_win32(self, x: int, y: int, capture_size: int) -> Image.Image:
@@ -163,10 +235,33 @@ class PlatformScreenCapture:
             print(f"Fallback capture failed: {e}")
             return None
     
-    def get_pixel_color(self, x: int, y: int) -> Tuple[int, int, int]:
-        """Get the color of a single pixel at the specified coordinates"""
+    def get_pixel_color(self, x: int, y: int, magnifier_size: int = 21) -> Tuple[int, int, int]:
+        """Get the color of a single pixel at the specified coordinates
+        
+        Args:
+            x, y: Screen coordinates
+            magnifier_size: Size of the magnifier area (should match UI magnifier size)
+                          This ensures the picked pixel is from the exact center of what's shown
+        """
         try:
-            if self.capture_method == 'mss':
+            # For macOS with PyObjC, capture the same area size as the magnifier
+            # and sample the exact center pixel for perfect consistency
+            if self.os_type == 'macos' and self.capture_method == 'pyobjc':
+                # Use the same area size as the magnifier preview
+                magnifier_area = self.capture_screen_area(x, y, magnifier_size)
+                if magnifier_area:
+                    # Get the exact center pixel (same as what magnifier shows in center)
+                    center_index = magnifier_size // 2
+                    center_color = magnifier_area.getpixel((center_index, center_index))
+                    return center_color
+                else:
+                    # Fallback to PyAutoGUI if area capture fails
+                    import pyautogui
+                    color = pyautogui.pixel(x, y)
+                    return (color.red, color.green, color.blue)
+            elif self.capture_method == 'pyobjc':
+                return self._get_pixel_pyobjc(x, y)
+            elif self.capture_method == 'mss':
                 return self._get_pixel_mss(x, y)
             elif self.capture_method == 'win32':
                 return self._get_pixel_win32(x, y)
@@ -186,6 +281,52 @@ class PlatformScreenCapture:
             # MSS returns BGRA, we need RGB
             bgra = screenshot.pixel(0, 0)
             return (bgra[2], bgra[1], bgra[0])  # Convert BGRA to RGB
+    
+    def _get_pixel_pyobjc(self, x: int, y: int) -> Tuple[int, int, int]:
+        """Get pixel color using PyObjC (native macOS)"""
+        import Quartz
+        from AppKit import NSScreen
+        
+        # Use logical coordinates directly - CGDisplayCreateImageForRect handles scaling automatically
+        capture_rect = Quartz.CGRectMake(x, y, 1, 1)
+        
+        # Capture the single pixel using CGDisplayCreateImageForRect
+        display_id = Quartz.CGMainDisplayID()
+        cg_image = Quartz.CGDisplayCreateImageForRect(display_id, capture_rect)
+        
+        if not cg_image:
+            raise Exception("Failed to capture pixel with PyObjC")
+        
+        # Create a bitmap context to get RGB data
+        color_space = Quartz.CGColorSpaceCreateDeviceRGB()
+        
+        # Get the actual size of the captured image (might be scaled on Retina)
+        width = Quartz.CGImageGetWidth(cg_image)
+        height = Quartz.CGImageGetHeight(cg_image)
+        
+        # For a 1x1 logical pixel on Retina, we might get 2x2 or 4x4 physical pixels
+        # We'll sample the center pixel
+        center_x = width // 2
+        center_y = height // 2
+        
+        bitmap_data = bytearray(width * height * 4)  # RGBA
+        
+        bitmap_context = Quartz.CGBitmapContextCreate(
+            bitmap_data,
+            width, height,
+            8,     # bits per component
+            width * 4,     # bytes per row
+            color_space,
+            Quartz.kCGImageAlphaPremultipliedLast
+        )
+        
+        # Draw the image into the bitmap context
+        Quartz.CGContextDrawImage(bitmap_context, Quartz.CGRectMake(0, 0, width, height), cg_image)
+        
+        # Extract RGB values from center pixel (ignore alpha)
+        pixel_offset = (center_y * width + center_x) * 4
+        r, g, b, a = bitmap_data[pixel_offset:pixel_offset+4]
+        return (r, g, b)
     
     def _get_pixel_win32(self, x: int, y: int) -> Tuple[int, int, int]:
         """Get pixel color using Windows API"""

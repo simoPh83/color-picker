@@ -50,3 +50,8 @@ git log origin/main --oneline -10
 git status
 git pull origin main
 
+
+
+TO RESET LOCAL CHANGES AND DOWNLOAD LATEST COMMITTED version
+git reset --hard HEAD && git clean -fd
+git pull origin main

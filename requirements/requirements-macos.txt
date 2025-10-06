@@ -3,3 +3,5 @@ webcolors>=1.13
 Pillow>=10.0.0
 numpy>=1.24.0
 mss>=7.0.1
+pyobjc-framework-Cocoa>=10.0
+pyobjc-framework-Quartz>=10.0

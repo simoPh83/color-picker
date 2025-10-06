@@ -780,7 +780,8 @@ class ColorPicker:
         while self.picking:
             try:
                 x, y = pyautogui.position()
-                pixel_color = self.screen_capture.get_pixel_color(x, y)
+                # Use same area size as magnifier for perfect consistency
+                pixel_color = self.screen_capture.get_pixel_color(x, y, magnifier_size=15)
                 
                 # Update status with current position
                 self.root.after(0, self.update_preview_status, x, y, pixel_color)
@@ -816,7 +817,8 @@ class ColorPicker:
         if self.picking:
             try:
                 x, y = pyautogui.position()
-                pixel_color = self.screen_capture.get_pixel_color(x, y)
+                # Use same area size as magnifier for perfect consistency  
+                pixel_color = self.screen_capture.get_pixel_color(x, y, magnifier_size=15)
                 
                 if self.dual_mode:
                     if self.dual_pick_stage == 1:
