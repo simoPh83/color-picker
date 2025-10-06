@@ -609,7 +609,17 @@ def create_clipboard_text(hue_analysis):
     if hue_part.strip() == "same":
         return ""
     
-    return f"tinted background: {hue_part.strip()}"
+    # Add (photos) and (video) descriptors to color transitions
+    if " -> " in hue_part:
+        colors = hue_part.split(" -> ")
+        if len(colors) == 2:
+            enhanced_hue_part = f"{colors[0].strip()} (photos) -> {colors[1].strip()} (video)"
+        else:
+            enhanced_hue_part = hue_part.strip()
+    else:
+        enhanced_hue_part = hue_part.strip()
+    
+    return f"tinted background: {enhanced_hue_part}"
 
 
 def get_next_simple_color_in_direction(hue_degrees, clockwise=True, subdivisions=12):

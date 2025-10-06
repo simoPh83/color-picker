@@ -51,7 +51,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # Disable UPX compression to avoid antivirus false positives
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # Set to False for a windowed app (no console window)
@@ -61,5 +61,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,  # You can add an .ico file path here if you have an icon
-    version_file=None,  # You can add a version file here if needed
+    version_file='version_info.py',  # Add version information to reduce false positives
 )
